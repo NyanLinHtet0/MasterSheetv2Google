@@ -27,9 +27,9 @@ function CorpDetailsTransactionsView({
   inventoryLeafOptions,
   languageMode = LANGUAGE_MODES.ENG,
 }) {
-  const sumData = (rows, id) =>
+  const sumData = (rows) =>
     rows.reduce(
-      (subTotal, tx) => subTotal.add(tx.global_tree_id !== id ? (tx.total_mmk ?? 0) : 0),
+      (subTotal, tx) => subTotal.add(tx.total_mmk ?? 0),
       currency(0)
     );
   const sumQty = (rows) =>
@@ -97,7 +97,7 @@ function CorpDetailsTransactionsView({
 
       <div className={styles.tablecontent}>
         <TransactionTable
-          title={`${titleParts.slice().reverse().join(' ')} Transactions: ${currency(sumData(displayTransactions,7).value, { precision: 0, symbol: '' }).format()} MMK (${sumQty(displayTransactions).value} items)`}
+          title={`${titleParts.slice().reverse().join(' ')} Transactions: ${currency(sumData(displayTransactions).value, { precision: 0, symbol: '' }).format()} MMK (${sumQty(displayTransactions).value} items)`}
           data={displayTransactions}
           type="all"
           currencyName={foreignLabel}
