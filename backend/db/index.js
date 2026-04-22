@@ -3,6 +3,7 @@ const { Connector } = require('@google-cloud/cloud-sql-connector');
 
 const SQL_DEBUG = process.env.SQL_DEBUG === 'true';
 const SQL_DEBUG_RESULTS = process.env.SQL_DEBUG_RESULTS === 'true';
+const DB_TARGET = (process.env.DB_TARGET || 'google').toLowerCase();
 
 function now() {
   return new Date().toISOString();
@@ -73,33 +74,98 @@ function ensurePool() {
   }
 }
 
+function getEnvValue(key, fallbackKey) {
+  const direct = process.env[key];
+  if (direct !== undefined && direct !== '') {
+    return direct;
+  }
+
+  if (!fallbackKey) {
+    return undefined;
+  }
+
+  const fallback = process.env[fallbackKey];
+  if (fallback !== undefined && fallback !== '') {
+    return fallback;
+  }
+
+  return undefined;
+}
+
+function requireEnvValue(key, fallbackKey) {
+  const value = getEnvValue(key, fallbackKey);
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}${fallbackKey ? ` (or ${fallbackKey})` : ''}`);
+  }
+
+  return value;
+}
+
+async function initializeLocalPool() {
+  const host = requireEnvValue('LOCAL_DB_HOST', 'DB_HOST');
+  const port = Number(getEnvValue('LOCAL_DB_PORT', 'DB_PORT') || 3306);
+  const user = requireEnvValue('LOCAL_DB_USER', 'DB_USER');
+  const password = requireEnvValue('LOCAL_DB_PASS', 'DB_PASS');
+  const database = requireEnvValue('LOCAL_DB_NAME', 'DB_NAME');
+
+  rawPool = mysql.createPool({
+    host,
+    port,
+    user,
+    password,
+    database,
+    dateStrings: true,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+  });
+
+  console.log(`Connected to local MySQL at ${host}:${port}`);
+}
+
+async function initializeGooglePool() {
+  const instanceConnectionName = requireEnvValue('GOOGLE_INSTANCE_CONNECTION_NAME', 'INSTANCE_CONNECTION_NAME');
+  const privateIpEnabled = getEnvValue('GOOGLE_PRIVATE_IP', 'PRIVATE_IP') === 'true';
+  const user = requireEnvValue('GOOGLE_DB_USER', 'DB_USER');
+  const password = requireEnvValue('GOOGLE_DB_PASS', 'DB_PASS');
+  const database = requireEnvValue('GOOGLE_DB_NAME', 'DB_NAME');
+
+  const connector = new Connector();
+
+  const clientOpts = await connector.getOptions({
+    instanceConnectionName,
+    ipType: privateIpEnabled ? 'PRIVATE' : 'PUBLIC',
+  });
+
+  rawPool = mysql.createPool({
+    ...clientOpts,
+    user,
+    password,
+    database,
+    dateStrings: true,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+  });
+
+  console.log('Connected to Google Cloud SQL');
+}
+
 async function initializePool() {
   try {
-    if (!process.env.INSTANCE_CONNECTION_NAME) {
-      throw new Error('INSTANCE_CONNECTION_NAME is missing from environment variables.');
+    if (DB_TARGET === 'local') {
+      await initializeLocalPool();
+      return;
     }
 
-    const connector = new Connector();
+    if (DB_TARGET === 'google') {
+      await initializeGooglePool();
+      return;
+    }
 
-    const clientOpts = await connector.getOptions({
-      instanceConnectionName: process.env.INSTANCE_CONNECTION_NAME,
-      ipType: process.env.PRIVATE_IP === 'true' ? 'PRIVATE' : 'PUBLIC',
-    });
-
-    rawPool = mysql.createPool({
-      ...clientOpts,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASS,
-      database: process.env.DB_NAME,
-      dateStrings: true,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-    });
-
-    console.log('Connected to Google Cloud SQL');
+    throw new Error(`Unsupported DB_TARGET "${DB_TARGET}". Use "local" or "google".`);
   } catch (error) {
-    console.error('Failed to initialize Cloud SQL pool:', error);
+    console.error(`Failed to initialize database pool for target "${DB_TARGET}":`, error);
     throw error;
   }
 }
