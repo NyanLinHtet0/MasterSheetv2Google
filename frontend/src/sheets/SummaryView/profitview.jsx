@@ -92,6 +92,12 @@ function SummaryRow({
 export default function ProfitSummarySheet({
   summaryData = [],
   title = 'Accounting Profit Summary',
+  startDate = '',
+  endDate = '',
+  onDateRangeChange,
+  fromLabel = 'From',
+  toLabel = 'To',
+  clearLabel = 'Clear',
 }) {
   const { displayRows, totalRow } = useMemo(() => {
     const totalIndex = summaryData.findIndex((row) => row?.isTotal);
@@ -114,6 +120,48 @@ export default function ProfitSummarySheet({
       <div className={styles.header}>{title}</div>
 
       <div className={styles.body}>
+        <div className={styles.filterRow}>
+          <label className={styles.filterLabel}>
+            <span>{fromLabel}</span>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={startDate}
+              onChange={(event) =>
+                onDateRangeChange?.({
+                  startDate: event.target.value,
+                  endDate,
+                })
+              }
+            />
+          </label>
+
+          <label className={styles.filterLabel}>
+            <span>{toLabel}</span>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(event) =>
+                onDateRangeChange?.({
+                  startDate,
+                  endDate: event.target.value,
+                })
+              }
+            />
+          </label>
+
+          <button
+            type="button"
+            className={styles.clearButton}
+            onClick={() => onDateRangeChange?.({ startDate: '', endDate: '' })}
+            disabled={!startDate && !endDate}
+          >
+            {clearLabel}
+          </button>
+        </div>
+
         <div className={styles.scrollArea}>
           {displayRows.map((row, index) => (
             <SummaryRow
