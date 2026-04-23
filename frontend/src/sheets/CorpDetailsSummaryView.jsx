@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import currency from 'currency.js';
 import SummaryViewSheet from './SummaryView/profitview';
 import styles from './CorpDetailsSummaryView.module.css'
@@ -45,11 +45,43 @@ function CorpDetailsSummaryView({
   languageMode = LANGUAGE_MODES.ENG,
 }) {
   const corpName = corpData?.name || 'Unknown corp';
+  const [dateRange, setDateRange] = useState({
+    startDate: '',
+    endDate: '',
+  });
+  const handleDateRangeChange = ({ startDate = '', endDate = '' }) => {
+    if (startDate && endDate && endDate < startDate) {
+      setDateRange({ startDate, endDate: startDate });
+      return;
+    }
+
+    setDateRange({ startDate, endDate });
+  };
+
+  const filteredTransactions = useMemo(() => {
+    const liveTransactions = normalizeRows(transactions);
+    const { startDate, endDate } = dateRange;
+
+    if (!startDate && !endDate) {
+      return liveTransactions.map((tx) => ({ ...tx }));
+    }
+
+    return liveTransactions
+      .filter((tx) => {
+        const txDate = String(tx?.tx_date || '').split('T')[0];
+        if (!txDate) return false;
+
+        if (startDate && txDate < startDate) return false;
+        if (endDate && txDate > endDate) return false;
+        return true;
+      })
+      .map((tx) => ({ ...tx }));
+  }, [transactions, dateRange]);
 
   const summaryData = useMemo(() => {
     const liveGlobalTree = normalizeRows(globalTree);
     const liveLocalTree = normalizeRows(localTree);
-    const liveTransactions = normalizeRows(transactions);
+    const liveTransactions = filteredTransactions;
 
     const globalRowMap = buildRowMap(liveGlobalTree);
     const localRowMap = buildRowMap(liveLocalTree);
@@ -185,7 +217,7 @@ function CorpDetailsSummaryView({
     };
 
     return [totalSalesRow, totalPurchasesRow, totalExpensesRow, grandTotalRow];
-  }, [globalTree, localTree, transactions, languageMode]);
+  }, [globalTree, localTree, filteredTransactions, languageMode]);
 
   return(
     <div className={styles.container}>
@@ -193,6 +225,12 @@ function CorpDetailsSummaryView({
         <SummaryViewSheet
           title={`${corpName} ${getLocalizedUiText('accounting_summary', languageMode)}`}
           summaryData={summaryData}
+          startDate={dateRange.startDate}
+          endDate={dateRange.endDate}
+          onDateRangeChange={handleDateRangeChange}
+          fromLabel={getLocalizedUiText('date_from', languageMode)}
+          toLabel={getLocalizedUiText('date_to', languageMode)}
+          clearLabel={getLocalizedUiText('date_clear', languageMode)}
         />
       </div>
     </div>

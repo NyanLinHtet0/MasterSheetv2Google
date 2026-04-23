@@ -36,6 +36,18 @@ const UI_TRANSLATIONS = {
     eng: 'Flow',
     bur: 'အဝင်/အထွက်',
   },
+  date_from: {
+    eng: 'From',
+    bur: 'မှ',
+  },
+  date_to: {
+    eng: 'To',
+    bur: 'သို့',
+  },
+  date_clear: {
+    eng: 'Clear',
+    bur: 'ရှင်းမည်',
+  },
 };
 
 const NAME_PARTITION_CHARS = ['|', '｜'];
